@@ -67,7 +67,7 @@ argument index as specified by the following table.
    user must pass fully specified memory objects so that the primitive is able
    to perform the computations. Note that the less information about shapes
    or format is available at the creation stage, the less performant execution
-   will be.  In particular, if the shape is not known at the creation stage, one
+   will be.  In particular, if the shape is not known at the creation stage, you
    cannot use the special format tag #dnnl::memory::format_tag::any to enable an
    implementation to choose the most appropriate memory format for the
    corresponding input or output shapes. On the other hand, run-time specified
