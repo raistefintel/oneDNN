@@ -80,7 +80,7 @@ argument index as specified by the following table.
    invalid.
 
 3. The broadcasting shape consistency check is not done for the dimensions with
-   #DNNL_RUNTIME_DIM_VAL. It is the user's responsibility to make sure the dimensions
+   #DNNL_RUNTIME_DIM_VAL. Make sure the dimensions
    for the tensors are valid.
 
 4. Multiple batch dimensions and broadcasting of batch dimensions of `src` and
