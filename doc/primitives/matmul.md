@@ -86,7 +86,7 @@ argument index as specified by the following table.
 4. Multiple batch dimensions and broadcasting of batch dimensions of `src` and
    `weights` are supported for both CPU and GPU engines.
 
-   Please check the tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
+   Check the tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
 
 ### Data Types
 
