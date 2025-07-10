@@ -231,7 +231,40 @@ status_t ref_group_normalization_bwd_t::execute(const exec_ctx_t &ctx) const {
 
         if (diff_scale) diff_scale[diff_ss_d.off(c)] = diff_gamma;
         if (diff_shift) diff_shift[diff_ss_d.off(c)] = diff_beta;
+    });
 
+    // Second pass: compute group-wide statistics for correct gradient calculation
+    parallel_nd(C, [&](dim_t c) {
+        int64_t g = c / C_PER_G;
+
+        // Compute group-wide statistics (this is the key fix)
+        float group_diff_gamma = 0;
+        float group_diff_beta = 0;
+        
+        for (dim_t c_in_g = g * C_PER_G; c_in_g < (g + 1) * C_PER_G; ++c_in_g) {
+            float gamma_c = scale ? scale[ss_d.off(c_in_g)] : 1.0f;
+            for (dim_t n = 0; n < N; ++n) {
+                size_t stat_off = n * G + g;
+                float v_mean = mean[stat_off];
+                float v_variance = variance[stat_off];
+                float sqrt_variance = 1.0f / sqrtf(v_variance + eps);
+
+                for_(dim_t d = 0; d < D; ++d)
+                for_(dim_t h = 0; h < H; ++h)
+                for (dim_t w = 0; w < W; ++w) {
+                    const size_t s_off = DATA_OFF(src_d, n, c_in_g, d, h, w);
+                    const size_t dd_off = DATA_OFF(diff_dst_d, n, c_in_g, d, h, w);
+                    float dd = io::load_float_value(
+                            diff_dst_d.data_type(), diff_dst, dd_off);
+                    float s = io::load_float_value(src_d.data_type(), src, s_off);
+                    group_diff_gamma += (s - v_mean) * dd * sqrt_variance * gamma_c;
+                    group_diff_beta += dd * gamma_c;
+                }
+            }
+        }
+
+        float gamma = scale ? scale[ss_d.off(c)] : 1.0f;
+        
         for (dim_t n = 0; n < N; ++n) {
             size_t stat_off = n * G + g;
             float v_mean = mean[stat_off];
@@ -247,13 +280,13 @@ status_t ref_group_normalization_bwd_t::execute(const exec_ctx_t &ctx) const {
                 float dd = io::load_float_value(
                         diff_dst_d.data_type(), diff_dst, dd_off);
                 float s = io::load_float_value(src_d.data_type(), src, s_off);
-                float v_diff_src = dd;
+                float v_diff_src = dd * gamma;
                 if (calculate_diff_stats) {
-                    v_diff_src -= diff_beta / CSP
-                            + (s - v_mean) * diff_gamma * sqrt_variance / CSP;
+                    v_diff_src -= group_diff_beta / CSP
+                            + (s - v_mean) * group_diff_gamma * sqrt_variance / CSP;
                 }
 
-                v_diff_src *= gamma * sqrt_variance;
+                v_diff_src *= sqrt_variance;
                 io::store_float_value(
                         diff_src_d.data_type(), v_diff_src, diff_src, ds_off);
             }
